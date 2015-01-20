@@ -30,7 +30,7 @@ class ValidationValidatorTest extends PHPUnit_Framework_TestCase {
 		$trans = $this->getRealTranslator();
 		$v = new Validator($trans, array('foo' => 'bar', 'baz' => 'boom'), array('foo' => 'Same:baz'));
 		$v->setContainer(new Illuminate\Container\Container);
-		$v->after(function()
+		$v->after(function($validator)
 		{
 			$_SERVER['__validator.after.test'] = true;
 		});
@@ -39,19 +39,19 @@ class ValidationValidatorTest extends PHPUnit_Framework_TestCase {
 		$this->assertTrue($_SERVER['__validator.after.test']);
 
 		unset($_SERVER['__validator.after.test']);
+	}
 
-		/**
-		 * Class Based Callback
-		 */
+
+	public function testSometimesWorksOnArrays()
+	{
 		$trans = $this->getRealTranslator();
-		$v = new Validator($trans, array('foo' => 'bar', 'baz' => 'boom'), array('foo' => 'Same:baz'));
-		$v->setContainer(new Illuminate\Container\Container);
-		$v->after('ValidatorTestAfterCallbackStub');
-
+		$v = new Validator($trans, array('foo' => array('bar', 'baz', 'moo')), array('foo' => 'sometimes|required|between:5,10'));
 		$this->assertFalse($v->passes());
-		$this->assertTrue($_SERVER['__validator.after.test']);
+		$this->assertNotEmpty($v->failed());
 
-		unset($_SERVER['__validator.after.test']);
+		$trans = $this->getRealTranslator();
+		$v = new Validator($trans, array('foo' => array('bar', 'baz', 'moo', 'pew', 'boom')), array('foo' => 'sometimes|required|between:5,10'));
+		$this->assertTrue($v->passes());
 	}
 
 
@@ -639,6 +639,9 @@ class ValidationValidatorTest extends PHPUnit_Framework_TestCase {
 		$v = new Validator($trans, array('foo' => '12345'), array('foo' => 'digits_between:1,6'));
 		$this->assertTrue($v->passes());
 
+		$v = new Validator($trans, array('foo' => 'bar'), array('foo' => 'digits_between:1,10'));
+		$this->assertFalse($v->passes());
+
 		$v = new Validator($trans, array('foo' => '123'), array('foo' => 'digits_between:4,5'));
 		$this->assertFalse($v->passes());
 	}
@@ -906,6 +909,23 @@ class ValidationValidatorTest extends PHPUnit_Framework_TestCase {
 		$this->assertFalse($v->passes());
 	}
 
+	public function testValidationExistsIsNotCalledUnnecessarily()
+	{
+		$trans = $this->getRealTranslator();
+		$v = new Validator($trans, array('id' => 'foo'), array('id' => 'Integer|Exists:users,id'));
+		$mock2 = m::mock('Illuminate\Validation\PresenceVerifierInterface');
+		$mock2->shouldReceive('getCount')->never();
+		$v->setPresenceVerifier($mock2);
+		$this->assertFalse($v->passes());
+
+		$trans = $this->getRealTranslator();
+		$v = new Validator($trans, array('id' => '1'), array('id' => 'Integer|Exists:users,id'));
+		$mock2 = m::mock('Illuminate\Validation\PresenceVerifierInterface');
+		$mock2->shouldReceive('getCount')->once()->with('users', 'id', '1', null, null, array())->andReturn(true);
+		$v->setPresenceVerifier($mock2);
+		$this->assertTrue($v->passes());
+	}
+
 
 	public function testValidateIp()
 	{
@@ -948,9 +968,9 @@ class ValidationValidatorTest extends PHPUnit_Framework_TestCase {
 
 		$v = new Validator($trans, array('x' => 'http://google.com'), array('x' => 'active_url'));
 		$this->assertTrue($v->passes());
-		
+
 		$v = new Validator($trans, array('x' => 'http://www.google.com'), array('x' => 'active_url'));
-		$this->assertTrue($v->passes());		
+		$this->assertTrue($v->passes());
 	}
 
 
@@ -1148,13 +1168,22 @@ class ValidationValidatorTest extends PHPUnit_Framework_TestCase {
 		$v = new Validator($trans, array('x' => '2000-01-01'), array('x' => 'date'));
 		$this->assertTrue($v->passes());
 
+		$v = new Validator($trans, array('x' => '01/01/2000'), array('x' => 'date'));
+		$this->assertTrue($v->passes());
+
 		$v = new Validator($trans, array('x' => 'Not a date'), array('x' => 'date'));
 		$this->assertTrue($v->fails());
 
 		$v = new Validator($trans, array('x' => '2000-01-01'), array('x' => 'date_format:Y-m-d'));
 		$this->assertTrue($v->passes());
 
+		$v = new Validator($trans, array('x' => '2000-01-01 17:43:59'), array('x' => 'date_format:Y-m-d H:i:s'));
+		$this->assertTrue($v->passes());
+
 		$v = new Validator($trans, array('x' => '01/01/2001'), array('x' => 'date_format:Y-m-d'));
+		$this->assertTrue($v->fails());
+
+		$v = new Validator($trans, array('x' => '22000-01-01'), array('x' => 'date_format:Y-m-d'));
 		$this->assertTrue($v->fails());
 	}
 

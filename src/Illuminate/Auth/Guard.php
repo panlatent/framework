@@ -1,26 +1,27 @@
 <?php namespace Illuminate\Auth;
 
+use RuntimeException;
 use Illuminate\Contracts\Events\Dispatcher;
 use Symfony\Component\HttpFoundation\Request;
-use Illuminate\Session\Store as SessionStore;
 use Symfony\Component\HttpFoundation\Response;
-use Illuminate\Contracts\Auth\User as UserContract;
 use Illuminate\Contracts\Auth\Guard as GuardContract;
 use Illuminate\Contracts\Cookie\QueueingFactory as CookieJar;
+use Illuminate\Contracts\Auth\Authenticatable as UserContract;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
 class Guard implements GuardContract {
 
 	/**
 	 * The currently authenticated user.
 	 *
-	 * @var \Illuminate\Contracts\Auth\User
+	 * @var \Illuminate\Contracts\Auth\Authenticatable
 	 */
 	protected $user;
 
 	/**
 	 * The user we last attempted to retrieve.
 	 *
-	 * @var \Illuminate\Contracts\Auth\User
+	 * @var \Illuminate\Contracts\Auth\Authenticatable
 	 */
 	protected $lastAttempted;
 
@@ -39,9 +40,9 @@ class Guard implements GuardContract {
 	protected $provider;
 
 	/**
-	 * The session store used by the guard.
+	 * The session used by the guard.
 	 *
-	 * @var \Illuminate\Session\Store
+	 * @var \Symfony\Component\HttpFoundation\Session\SessionInterface
 	 */
 	protected $session;
 
@@ -84,12 +85,12 @@ class Guard implements GuardContract {
 	 * Create a new authentication guard.
 	 *
 	 * @param  \Illuminate\Auth\UserProviderInterface  $provider
-	 * @param  \Illuminate\Session\Store  $session
+	 * @param  \Symfony\Component\HttpFoundation\Session\SessionInterface  $session
 	 * @param  \Symfony\Component\HttpFoundation\Request  $request
 	 * @return void
 	 */
 	public function __construct(UserProviderInterface $provider,
-								SessionStore $session,
+								SessionInterface $session,
 								Request $request = null)
 	{
 		$this->session = $session;
@@ -120,7 +121,7 @@ class Guard implements GuardContract {
 	/**
 	 * Get the currently authenticated user.
 	 *
-	 * @return \Illuminate\Contracts\Auth\User|null
+	 * @return \Illuminate\Contracts\Auth\Authenticatable|null
 	 */
 	public function user()
 	{
@@ -154,6 +155,8 @@ class Guard implements GuardContract {
 		if (is_null($user) && ! is_null($recaller))
 		{
 			$user = $this->getUserByRecaller($recaller);
+
+			if ($user) $this->fireLoginEvent($user, true);
 		}
 
 		return $this->user = $user;
@@ -168,7 +171,14 @@ class Guard implements GuardContract {
 	{
 		if ($this->loggedOut) return;
 
-		return $this->session->get($this->getName(), $this->getRecallerId());
+		$id = $this->session->get($this->getName(), $this->getRecallerId());
+
+		if (is_null($id) && $this->user())
+		{
+			$id = $this->user()->getAuthIdentifier();
+		}
+
+		return $id;
 	}
 
 	/**
@@ -235,7 +245,7 @@ class Guard implements GuardContract {
 	 * @param  array  $credentials
 	 * @return bool
 	 */
-	public function once(array $credentials = array())
+	public function once(array $credentials = [])
 	{
 		if ($this->validate($credentials))
 		{
@@ -253,7 +263,7 @@ class Guard implements GuardContract {
 	 * @param  array  $credentials
 	 * @return bool
 	 */
-	public function validate(array $credentials = array())
+	public function validate(array $credentials = [])
 	{
 		return $this->attempt($credentials, false, false);
 	}
@@ -313,7 +323,7 @@ class Guard implements GuardContract {
 	 */
 	protected function getBasicCredentials(Request $request, $field)
 	{
-		return array($field => $request->getUser(), 'password' => $request->getPassword());
+		return [$field => $request->getUser(), 'password' => $request->getPassword()];
 	}
 
 	/**
@@ -323,7 +333,7 @@ class Guard implements GuardContract {
 	 */
 	protected function getBasicResponse()
 	{
-		$headers = array('WWW-Authenticate' => 'Basic');
+		$headers = ['WWW-Authenticate' => 'Basic'];
 
 		return new Response('Invalid credentials.', 401, $headers);
 	}
@@ -336,7 +346,7 @@ class Guard implements GuardContract {
 	 * @param  bool   $login
 	 * @return bool
 	 */
-	public function attempt(array $credentials = array(), $remember = false, $login = true)
+	public function attempt(array $credentials = [], $remember = false, $login = true)
 	{
 		$this->fireAttemptEvent($credentials, $remember, $login);
 
@@ -379,7 +389,7 @@ class Guard implements GuardContract {
 	{
 		if ($this->events)
 		{
-			$payload = array($credentials, $remember, $login);
+			$payload = [$credentials, $remember, $login];
 
 			$this->events->fire('auth.attempt', $payload);
 		}
@@ -402,7 +412,7 @@ class Guard implements GuardContract {
 	/**
 	 * Log a user into the application.
 	 *
-	 * @param  \Illuminate\Contracts\Auth\User  $user
+	 * @param  \Illuminate\Contracts\Auth\Authenticatable  $user
 	 * @param  bool  $remember
 	 * @return void
 	 */
@@ -423,12 +433,24 @@ class Guard implements GuardContract {
 		// If we have an event dispatcher instance set we will fire an event so that
 		// any listeners will hook into the authentication events and run actions
 		// based on the login and logout events fired from the guard instances.
-		if (isset($this->events))
-		{
-			$this->events->fire('auth.login', array($user, $remember));
-		}
+		$this->fireLoginEvent($user, $remember);
 
 		$this->setUser($user);
+	}
+
+	/**
+	 * Fire the login event if the dispatcher is set.
+	 *
+	 * @param  \Illuminate\Contracts\Auth\Authenticatable  $user
+	 * @param  bool  $remember
+	 * @return void
+	 */
+	protected function fireLoginEvent($user, $remember = false)
+	{
+		if (isset($this->events))
+		{
+			$this->events->fire('auth.login', [$user, $remember]);
+		}
 	}
 
 	/**
@@ -439,7 +461,7 @@ class Guard implements GuardContract {
 	 */
 	protected function updateSession($id)
 	{
-		$this->session->put($this->getName(), $id);
+		$this->session->set($this->getName(), $id);
 
 		$this->session->migrate(true);
 	}
@@ -449,11 +471,11 @@ class Guard implements GuardContract {
 	 *
 	 * @param  mixed  $id
 	 * @param  bool   $remember
-	 * @return \Illuminate\Contracts\Auth\User
+	 * @return \Illuminate\Contracts\Auth\Authenticatable
 	 */
 	public function loginUsingId($id, $remember = false)
 	{
-		$this->session->put($this->getName(), $id);
+		$this->session->set($this->getName(), $id);
 
 		$this->login($user = $this->provider->retrieveById($id), $remember);
 
@@ -476,7 +498,7 @@ class Guard implements GuardContract {
 	/**
 	 * Queue the recaller cookie into the cookie jar.
 	 *
-	 * @param  \Illuminate\Contracts\Auth\User  $user
+	 * @param  \Illuminate\Contracts\Auth\Authenticatable  $user
 	 * @return void
 	 */
 	protected function queueRecallerCookie(UserContract $user)
@@ -518,7 +540,7 @@ class Guard implements GuardContract {
 
 		if (isset($this->events))
 		{
-			$this->events->fire('auth.logout', array($user));
+			$this->events->fire('auth.logout', [$user]);
 		}
 
 		// Once we have fired the logout event we will clear the users out of memory
@@ -536,7 +558,7 @@ class Guard implements GuardContract {
 	 */
 	protected function clearUserDataFromStorage()
 	{
-		$this->session->forget($this->getName());
+		$this->session->remove($this->getName());
 
 		$recaller = $this->getRecallerName();
 
@@ -546,7 +568,7 @@ class Guard implements GuardContract {
 	/**
 	 * Refresh the remember token for the user.
 	 *
-	 * @param  \Illuminate\Contracts\Auth\User  $user
+	 * @param  \Illuminate\Contracts\Auth\Authenticatable  $user
 	 * @return void
 	 */
 	protected function refreshRememberToken(UserContract $user)
@@ -559,7 +581,7 @@ class Guard implements GuardContract {
 	/**
 	 * Create a new remember token for the user if one doesn't already exist.
 	 *
-	 * @param  \Illuminate\Contracts\Auth\User  $user
+	 * @param  \Illuminate\Contracts\Auth\Authenticatable  $user
 	 * @return void
 	 */
 	protected function createRememberTokenIfDoesntExist(UserContract $user)
@@ -583,7 +605,7 @@ class Guard implements GuardContract {
 	{
 		if ( ! isset($this->cookie))
 		{
-			throw new \RuntimeException("Cookie jar has not been set.");
+			throw new RuntimeException("Cookie jar has not been set.");
 		}
 
 		return $this->cookie;
@@ -655,7 +677,7 @@ class Guard implements GuardContract {
 	/**
 	 * Return the currently cached user of the application.
 	 *
-	 * @return \Illuminate\Contracts\Auth\User|null
+	 * @return \Illuminate\Contracts\Auth\Authenticatable|null
 	 */
 	public function getUser()
 	{
@@ -665,7 +687,7 @@ class Guard implements GuardContract {
 	/**
 	 * Set the current user of the application.
 	 *
-	 * @param  \Illuminate\Contracts\Auth\User  $user
+	 * @param  \Illuminate\Contracts\Auth\Authenticatable  $user
 	 * @return void
 	 */
 	public function setUser(UserContract $user)
@@ -701,7 +723,7 @@ class Guard implements GuardContract {
 	/**
 	 * Get the last user we attempted to authenticate.
 	 *
-	 * @return \Illuminate\Contracts\Auth\User
+	 * @return \Illuminate\Contracts\Auth\Authenticatable
 	 */
 	public function getLastAttempted()
 	{

@@ -1,8 +1,9 @@
 <?php namespace Illuminate\Http;
 
 use Illuminate\Contracts\Support\Jsonable;
+use Symfony\Component\HttpFoundation\JsonResponse as BaseJsonResponse;
 
-class JsonResponse extends \Symfony\Component\HttpFoundation\JsonResponse {
+class JsonResponse extends BaseJsonResponse {
 
 	use ResponseTrait;
 
@@ -31,8 +32,8 @@ class JsonResponse extends \Symfony\Component\HttpFoundation\JsonResponse {
 	/**
 	 * Get the json_decoded data from the response
 	 *
-	 * @param  bool $assoc
-	 * @param  int  $depth
+	 * @param  bool  $assoc
+	 * @param  int   $depth
 	 * @return mixed
 	 */
 	public function getData($assoc = false, $depth = 512)

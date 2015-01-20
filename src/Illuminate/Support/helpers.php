@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Illuminate\Support\Debug\Dumper;
 
 if ( ! function_exists('append_config'))
 {
@@ -196,6 +197,21 @@ if ( ! function_exists('array_get'))
 	}
 }
 
+if ( ! function_exists('array_has'))
+{
+	/**
+	 * Check if an item exists in an array using "dot" notation.
+	 *
+	 * @param  array   $array
+	 * @param  string  $key
+	 * @return bool
+	 */
+	function array_has($array, $key)
+	{
+		return Arr::has($array, $key);
+	}
+}
+
 if ( ! function_exists('array_only'))
 {
 	/**
@@ -347,7 +363,7 @@ if ( ! function_exists('config_merge'))
 	/**
 	 * Sensibly merge configuration arrays.
 	 *
-	 * @param  dynamic array
+	 * @param  array  ...$args
 	 * @return array
 	 */
 	function config_merge()
@@ -402,6 +418,15 @@ if ( ! function_exists('data_get'))
 
 				$target = $target[$segment];
 			}
+			elseif ($target instanceof ArrayAccess)
+			{
+				if ( ! isset($target[$segment]))
+				{
+					return value($default);
+				}
+
+				$target = $target[$segment];
+			}
 			elseif (is_object($target))
 			{
 				if ( ! isset($target->{$segment}))
@@ -431,7 +456,9 @@ if ( ! function_exists('dd'))
 	 */
 	function dd()
 	{
-		array_map(function($x) { var_dump($x); }, func_get_args()); die;
+		array_map(function($x) { (new Dumper)->dump($x); }, func_get_args());
+
+		die;
 	}
 }
 
@@ -694,6 +721,21 @@ if ( ! function_exists('str_singular'))
 	function str_singular($value)
 	{
 		return Str::singular($value);
+	}
+}
+
+if ( ! function_exists('str_slug'))
+{
+	/**
+	 * Generate a URL friendly "slug" from a given string.
+	 *
+	 * @param  string  $title
+	 * @param  string  $separator
+	 * @return string
+	 */
+	function str_slug($title, $separator = '-')
+	{
+		return Str::slug($title, $separator);
 	}
 }
 

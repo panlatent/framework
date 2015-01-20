@@ -95,7 +95,7 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase {
 	public function testCountable()
 	{
 		$c = new Collection(array('foo', 'bar'));
-		$this->assertEquals(2, count($c));
+		$this->assertCount(2, $c);
 	}
 
 
@@ -121,6 +121,14 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase {
 		{
 			return $item['id'] == 2;
 		})->all());
+	}
+
+
+	public function testWhere()
+	{
+		$c = new Collection([['v' => 1], ['v' => 2], ['v' => 3], ['v' => '3'], ['v' => 4]]);
+
+		$this->assertEquals([['v' => 3], ['v' => '3']], $c->where('v', 3)->values()->all());
 	}
 
 
@@ -245,7 +253,7 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase {
 	}
 
 
-	public function testChunk ()
+	public function testChunk()
 	{
 		$data = new Collection(array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
 		$data = $data->chunk(3);
@@ -261,6 +269,18 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase {
 	public function testListsWithArrayAndObjectValues()
 	{
 		$data = new Collection(array((object) array('name' => 'taylor', 'email' => 'foo'), array('name' => 'dayle', 'email' => 'bar')));
+		$this->assertEquals(array('taylor' => 'foo', 'dayle' => 'bar'), $data->lists('email', 'name'));
+		$this->assertEquals(array('foo', 'bar'), $data->lists('email'));
+	}
+
+
+	public function testListsWithArrayAccessValues()
+	{
+		$data = new Collection(array(
+			new TestArrayAccessImplementation(array('name' => 'taylor', 'email' => 'foo')),
+			new TestArrayAccessImplementation(array('name' => 'dayle', 'email' => 'bar'))
+		));
+
 		$this->assertEquals(array('taylor' => 'foo', 'dayle' => 'bar'), $data->lists('email', 'name'));
 		$this->assertEquals(array('foo', 'bar'), $data->lists('email'));
 	}
@@ -477,6 +497,11 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase {
 		$this->assertFalse($c->contains(2));
 		$this->assertTrue($c->contains(function($value) { return $value < 5; }));
 		$this->assertFalse($c->contains(function($value) { return $value > 5; }));
+
+		$c = new Collection([['v' => 1], ['v' => 3], ['v' => 5]]);
+
+		$this->assertTrue($c->contains('v', 1));
+		$this->assertFalse($c->contains('v', 2));
 	}
 
 
@@ -487,6 +512,13 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase {
 
 		$c = new Collection(array((object) array('foo' => 50), (object) array('foo' => 50)));
 		$this->assertEquals(100, $c->sum(function($i) { return $i->foo; }));
+	}
+
+
+	public function testCanSumValuesWithoutACallback()
+	{
+		$c = new Collection([1, 2, 3, 4, 5]);
+		$this->assertEquals(15, $c->sum());
 	}
 
 
@@ -554,7 +586,7 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase {
 	public function testKeys()
 	{
 		$c = new Collection(array('name' => 'taylor', 'framework' => 'laravel'));
-		$this->assertEquals(array('name', 'framework'), $c->keys());
+		$this->assertEquals(array('name', 'framework'), $c->keys()->all());
 	}
 
 
@@ -588,9 +620,50 @@ class TestAccessorEloquentTestStub
 		return $this->$attribute;
 	}
 
+	public function __isset($attribute)
+	{
+		$accessor = 'get' .lcfirst($attribute). 'Attribute';
+
+		if (method_exists($this, $accessor)) {
+			return !is_null($this->$accessor());
+		}
+
+		return isset($this->$attribute);
+	}
+
 
 	public function getSomeAttribute()
 	{
 		return $this->attributes['some'];
+	}
+}
+
+class TestArrayAccessImplementation implements ArrayAccess
+{
+	private $arr;
+
+	public function __construct($arr)
+	{
+		$this->arr = $arr;
+	}
+
+	public function offsetExists($offset)
+	{
+		return isset($this->arr[$offset]);
+	}
+
+	public function offsetGet($offset)
+	{
+		return $this->arr[$offset];
+	}
+
+	public function offsetSet($offset, $value)
+	{
+		$this->arr[$offset] = $value;
+	}
+
+	public function offsetUnset($offset)
+	{
+		unset($this->arr[$offset]);
 	}
 }

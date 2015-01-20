@@ -2,6 +2,7 @@
 
 use Closure;
 use DateTime;
+use RuntimeException;
 use Illuminate\Container\Container;
 use Illuminate\Support\SerializableClosure;
 use Illuminate\Contracts\Queue\QueueableEntity;
@@ -23,11 +24,11 @@ abstract class Queue {
 	 */
 	public function marshal()
 	{
-		throw new \RuntimeException("Push queues only supported by Iron.");
+		throw new RuntimeException("Push queues only supported by Iron.");
 	}
 
 	/**
-	 * Push a new an array of jobs onto the queue.
+	 * Push an array of jobs onto the queue.
 	 *
 	 * @param  array   $jobs
 	 * @param  mixed   $data
@@ -55,6 +56,13 @@ abstract class Queue {
 		if ($job instanceof Closure)
 		{
 			return json_encode($this->createClosurePayload($job, $data));
+		}
+		elseif (is_object($job))
+		{
+			return json_encode([
+				'job' => 'Illuminate\Queue\CallQueuedHandler@call',
+				'data' => ['command' => serialize($job)]
+			]);
 		}
 
 		return json_encode($this->createPlainPayload($job, $data));

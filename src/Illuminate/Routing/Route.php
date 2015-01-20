@@ -1,6 +1,7 @@
 <?php namespace Illuminate\Routing;
 
 use Closure;
+use LogicException;
 use ReflectionFunction;
 use Illuminate\Http\Request;
 use Illuminate\Container\Container;
@@ -8,10 +9,8 @@ use Illuminate\Routing\Matching\UriValidator;
 use Illuminate\Routing\Matching\HostValidator;
 use Illuminate\Routing\Matching\MethodValidator;
 use Illuminate\Routing\Matching\SchemeValidator;
-use Illuminate\Routing\Controller as BaseController;
 use Symfony\Component\Routing\Route as SymfonyRoute;
 use Illuminate\Http\Exception\HttpResponseException;
-use Illuminate\Routing\RouteDependencyResolverTrait;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class Route {
@@ -422,7 +421,7 @@ class Route {
 	 *
 	 * @return array
 	 *
-	 * @throws \LogicException
+	 * @throws LogicException
 	 */
 	public function parameters()
 	{
@@ -435,7 +434,7 @@ class Route {
 			}, $this->parameters);
 		}
 
-		throw new \LogicException("Route is not bound.");
+		throw new LogicException("Route is not bound.");
 	}
 
 	/**
@@ -599,19 +598,19 @@ class Route {
 		// across into the "uses" property that will get fired off by this route.
 		elseif ( ! isset($action['uses']))
 		{
-			$action['uses'] = $this->findClosure($action);
+			$action['uses'] = $this->findCallable($action);
 		}
 
 		return $action;
 	}
 
 	/**
-	 * Find the Closure in an action array.
+	 * Find the callable in an action array.
 	 *
 	 * @param  array  $action
-	 * @return \Closure
+	 * @return callable
 	 */
-	protected function findClosure(array $action)
+	protected function findCallable(array $action)
 	{
 		return array_first($action, function($key, $value)
 		{
@@ -668,9 +667,13 @@ class Route {
 	 */
 	protected function addFilters($type, $filters)
 	{
+		$filters = static::explodeFilters($filters);
+
 		if (isset($this->action[$type]))
 		{
-			$this->action[$type] .= '|'.$filters;
+			$existing = static::explodeFilters($this->action[$type]);
+
+			$this->action[$type] = array_merge($existing, $filters);
 		}
 		else
 		{
@@ -935,17 +938,30 @@ class Route {
 	 * Prepare the route instance for serialization.
 	 *
 	 * @return void
+	 *
+	 * @throws LogicException
 	 */
 	public function prepareForSerialization()
 	{
 		if ($this->action['uses'] instanceof Closure)
 		{
-			throw new \LogicException("Unable to prepare route [{$this->uri}] for serialization. Uses Closure.");
+			throw new LogicException("Unable to prepare route [{$this->uri}] for serialization. Uses Closure.");
 		}
 
 		unset($this->container);
 
 		unset($this->compiled);
+	}
+
+	/**
+	 * Dynamically access route parameters.
+	 *
+	 * @param  string  $key
+	 * @return mixed
+	 */
+	public function __get($key)
+	{
+		return $this->parameter($key);
 	}
 
 }

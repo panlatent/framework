@@ -75,17 +75,26 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	/**
 	 * Determine if an item exists in the collection.
 	 *
+	 * @param  mixed  $key
 	 * @param  mixed  $value
 	 * @return bool
 	 */
-	public function contains($value)
+	public function contains($key, $value = null)
 	{
-		if ($value instanceof Closure)
+		if (func_num_args() == 2)
 		{
-			return ! is_null($this->first($value));
+			return $this->contains(function($k, $item) use ($key, $value)
+			{
+				return data_get($item, $key) == $value;
+			});
 		}
 
-		return in_array($value, $this->items);
+		if ($key instanceof Closure)
+		{
+			return ! is_null($this->first($key));
+		}
+
+		return in_array($key, $this->items);
 	}
 
 	/**
@@ -135,6 +144,21 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	}
 
 	/**
+	 * Filter items by the given key value pair.
+	 *
+	 * @param  string  $key
+	 * @param  mixed  $value
+	 * @return static
+	 */
+	public function where($key, $value)
+	{
+		return $this->filter(function($item) use ($key, $value)
+		{
+			return data_get($item, $key) == $value;
+		});
+	}
+
+	/**
 	 * Get the first item from the collection.
 	 *
 	 * @param  \Closure   $callback
@@ -179,7 +203,7 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	 */
 	public function forget($key)
 	{
-		unset($this->items[$key]);
+		$this->offsetUnset($key);
 	}
 
 	/**
@@ -211,7 +235,7 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 
 		foreach ($this->items as $key => $value)
 		{
-			$results[$this->getGroupbyKey($groupBy, $key, $value)][] = $value;
+			$results[$this->getGroupByKey($groupBy, $key, $value)][] = $value;
 		}
 
 		return new static($results);
@@ -225,7 +249,7 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	 * @param  mixed  $value
 	 * @return string
 	 */
-	protected function getGroupbyKey($groupBy, $key, $value)
+	protected function getGroupByKey($groupBy, $key, $value)
 	{
 		if ( ! is_string($groupBy) && is_callable($groupBy))
 		{
@@ -275,8 +299,6 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	 */
 	public function implode($value, $glue = null)
 	{
-		if (is_null($glue)) return implode($this->lists($value));
-
 		return implode($glue, $this->lists($value));
 	}
 
@@ -304,11 +326,11 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	/**
 	 * Get the keys of the collection items.
 	 *
-	 * @return array
+	 * @return static
 	 */
 	public function keys()
 	{
-		return array_keys($this->items);
+		return new static(array_keys($this->items));
 	}
 
 	/**
@@ -396,7 +418,7 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	 */
 	public function push($value)
 	{
-		$this->items[] = $value;
+		$this->offsetSet(null, $value);
 	}
 
 	/**
@@ -420,7 +442,7 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	 */
 	public function put($key, $value)
 	{
-		$this->items[$key] = $value;
+		$this->offsetSet($key, $value);
 	}
 
 	/**
@@ -431,7 +453,7 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	 */
 	public function random($amount = 1)
 	{
-		if ($this->isEmpty()) return null;
+		if ($this->isEmpty()) return;
 
 		$keys = array_rand($this->items, $amount);
 
@@ -628,11 +650,16 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	/**
 	 * Get the sum of the given values.
 	 *
-	 * @param  \Closure  $callback
+	 * @param  \Closure|null  $callback
 	 * @return mixed
 	 */
-	public function sum($callback)
+	public function sum($callback = null)
 	{
+		if (is_null($callback))
+		{
+			return array_sum($this->items);
+		}
+
 		if (is_string($callback))
 		{
 			$callback = $this->valueRetriever($callback);
@@ -688,9 +715,7 @@ class Collection implements ArrayAccess, Arrayable, Countable, IteratorAggregate
 	 */
 	public function values()
 	{
-		$this->items = array_values($this->items);
-
-		return $this;
+		return new static(array_values($this->items));
 	}
 
 	/**

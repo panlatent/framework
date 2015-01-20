@@ -44,6 +44,13 @@ class BelongsToMany extends Relation {
 	protected $pivotColumns = array();
 
 	/**
+	 * Any pivot table restrictions.
+	 *
+	 * @var array
+	 */
+	protected $pivotWheres = [];
+
+	/**
 	 * Create a new has many relationship instance.
 	 *
 	 * @param  \Illuminate\Database\Eloquent\Builder  $query
@@ -85,6 +92,8 @@ class BelongsToMany extends Relation {
 	 */
 	public function wherePivot($column, $operator = null, $value = null, $boolean = 'and')
 	{
+		$this->pivotWheres[] = func_get_args();
+
 		return $this->where($this->table.'.'.$column, $operator, $value, $boolean);
 	}
 
@@ -304,6 +313,17 @@ class BelongsToMany extends Relation {
 	}
 
 	/**
+	 * Determine whether the given column is defined as a pivot column.
+	 *
+	 * @param  string  $column
+	 * @return bool
+	 */
+	protected function hasPivotColumn($column)
+	{
+		return in_array($column, $this->pivotColumns);
+	}
+
+	/**
 	 * Set the join clause for the relation query.
 	 *
 	 * @param  \Illuminate\Database\Eloquent\Builder|null
@@ -493,6 +513,76 @@ class BelongsToMany extends Relation {
 	}
 
 	/**
+	 * Find a related model by its primary key or return new instance of the related model.
+	 *
+	 * @param  mixed  $id
+	 * @param  array  $columns
+	 * @return \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Model
+	 */
+	public function findOrNew($id, $columns = ['*'])
+	{
+		if (is_null($instance = $this->find($id, $columns)))
+		{
+			$instance = $this->getRelated()->newInstance();
+		}
+
+		return $instance;
+	}
+
+	/**
+	 * Get the first related model record matching the attributes or instantiate it.
+	 *
+	 * @param  array  $attributes
+	 * @return \Illuminate\Database\Eloquent\Model
+	 */
+	public function firstOrNew(array $attributes)
+	{
+		if (is_null($instance = $this->where($attributes)->first()))
+		{
+			$instance = $this->related->newInstance();
+		}
+
+		return $instance;
+	}
+
+	/**
+	 * Get the first related record matching the attributes or create it.
+	 *
+	 * @param  array  $attributes
+	 * @return \Illuminate\Database\Eloquent\Model
+	 */
+	public function firstOrCreate(array $attributes, array $joining = [], $touch = true)
+	{
+		if (is_null($instance = $this->where($attributes)->first()))
+		{
+			$instance = $this->create($attributes, $joining, $touch);
+		}
+
+		return $instance;
+	}
+
+	/**
+	 * Create or update a related record matching the attributes, and fill it with values.
+	 *
+	 * @param  array  $attributes
+	 * @param  array  $values
+	 * @return \Illuminate\Database\Eloquent\Model
+	 */
+	public function updateOrCreate(array $attributes, array $values = [], array $joining = [], $touch = true)
+	{
+		if (is_null($instance = $this->where($attributes)->first()))
+		{
+			return $this->create($values, $joining, $touch);
+		}
+
+		$instance->fill($values);
+
+		$instance->save(['touch' => false]);
+
+		return $instance;
+	}
+
+	/**
 	 * Create a new instance of the related model.
 	 *
 	 * @param  array  $attributes
@@ -538,7 +628,7 @@ class BelongsToMany extends Relation {
 	/**
 	 * Sync the intermediate tables with a list of IDs or collection of models.
 	 *
-	 * @param  $ids
+	 * @param  array  $ids
 	 * @param  bool   $detaching
 	 * @return array
 	 */
@@ -696,7 +786,8 @@ class BelongsToMany extends Relation {
 	{
 		$records = array();
 
-		$timed = in_array($this->createdAt(), $this->pivotColumns);
+		$timed = ($this->hasPivotColumn($this->createdAt()) ||
+			      $this->hasPivotColumn($this->updatedAt()));
 
 		// To create the attachment records, we will simply spin through the IDs given
 		// and create a new record to insert for each ID. Each ID may actually be a
@@ -783,9 +874,15 @@ class BelongsToMany extends Relation {
 	{
 		$fresh = $this->parent->freshTimestamp();
 
-		if ( ! $exists) $record[$this->createdAt()] = $fresh;
+		if ( ! $exists && $this->hasPivotColumn($this->createdAt()))
+		{
+			$record[$this->createdAt()] = $fresh;
+		}
 
-		$record[$this->updatedAt()] = $fresh;
+		if ($this->hasPivotColumn($this->updatedAt()))
+		{
+			$record[$this->updatedAt()] = $fresh;
+		}
 
 		return $record;
 	}
@@ -864,6 +961,11 @@ class BelongsToMany extends Relation {
 	{
 		$query = $this->newPivotStatement();
 
+		foreach ($this->pivotWheres as $whereArgs)
+		{
+			call_user_func_array([$query, 'where'], $whereArgs);
+		}
+
 		return $query->where($this->foreignKey, $this->parent->getKey());
 	}
 
@@ -885,11 +987,7 @@ class BelongsToMany extends Relation {
 	 */
 	public function newPivotStatementForId($id)
 	{
-		$pivot = $this->newPivotStatement();
-
-		$key = $this->parent->getKey();
-
-		return $pivot->where($this->foreignKey, $key)->where($this->otherKey, $id);
+		return $this->newPivotQuery()->where($this->otherKey, $id);
 	}
 
 	/**
@@ -920,7 +1018,7 @@ class BelongsToMany extends Relation {
 	/**
 	 * Set the columns on the pivot table to retrieve.
 	 *
-	 * @param  array  $columns
+	 * @param  mixed  $columns
 	 * @return $this
 	 */
 	public function withPivot($columns)

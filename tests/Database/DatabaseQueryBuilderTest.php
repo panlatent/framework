@@ -20,6 +20,20 @@ class DatabaseQueryBuilderTest extends PHPUnit_Framework_TestCase {
 	}
 
 
+	public function testBasicSelectUseWritePdo()
+	{
+		$builder = $this->getMySqlBuilderWithProcessor();
+		$builder->getConnection()->shouldReceive('select')->once()
+			->with('select * from `users`', array(), false);
+		$builder->useWritePdo()->select('*')->from('users')->get();
+
+		$builder = $this->getMySqlBuilderWithProcessor();
+		$builder->getConnection()->shouldReceive('select')->once()
+			->with('select * from `users`', array());
+		$builder->select('*')->from('users')->get();
+	}
+
+
 	public function testBasicTableWrappingProtectsQuotationMarks()
 	{
 		$builder = $this->getBuilder();
@@ -65,6 +79,24 @@ class DatabaseQueryBuilderTest extends PHPUnit_Framework_TestCase {
 		$builder = $this->getBuilder();
 		$builder->select('foo as bar')->from('users');
 		$this->assertEquals('select "foo" as "bar" from "users"', $builder->toSql());
+	}
+
+
+	public function testAliasWithPrefix()
+	{
+		$builder = $this->getBuilder();
+		$builder->getGrammar()->setTablePrefix('prefix_');
+		$builder->select('*')->from('users as people');
+		$this->assertEquals('select * from "prefix_users" as "prefix_people"', $builder->toSql());
+	}
+
+
+	public function testJoinAliasesWithPrefix()
+	{
+		$builder = $this->getBuilder();
+		$builder->getGrammar()->setTablePrefix('prefix_');
+		$builder->select('*')->from('services')->join('translations AS t', 't.item_id', '=', 'services.id');
+		$this->assertEquals('select * from "prefix_services" inner join "prefix_translations" as "prefix_t" on "prefix_t"."item_id" = "prefix_services"."id"', $builder->toSql());
 	}
 
 
@@ -270,6 +302,34 @@ class DatabaseQueryBuilderTest extends PHPUnit_Framework_TestCase {
 	}
 
 
+	public function testEmptyWhereIns()
+	{
+		$builder = $this->getBuilder();
+		$builder->select('*')->from('users')->whereIn('id', array());
+		$this->assertEquals('select * from "users" where 0 = 1', $builder->toSql());
+		$this->assertEquals(array(), $builder->getBindings());
+
+		$builder = $this->getBuilder();
+		$builder->select('*')->from('users')->where('id', '=', 1)->orWhereIn('id', array());
+		$this->assertEquals('select * from "users" where "id" = ? or 0 = 1', $builder->toSql());
+		$this->assertEquals(array(0 => 1), $builder->getBindings());
+	}
+
+
+	public function testEmptyWhereNotIns()
+	{
+		$builder = $this->getBuilder();
+		$builder->select('*')->from('users')->whereNotIn('id', array());
+		$this->assertEquals('select * from "users" where 1 = 1', $builder->toSql());
+		$this->assertEquals(array(), $builder->getBindings());
+
+		$builder = $this->getBuilder();
+		$builder->select('*')->from('users')->where('id', '=', 1)->orWhereNotIn('id', array());
+		$this->assertEquals('select * from "users" where "id" = ? or 1 = 1', $builder->toSql());
+		$this->assertEquals(array(0 => 1), $builder->getBindings());
+	}
+
+
 	public function testUnions()
 	{
 		$builder = $this->getBuilder();
@@ -315,6 +375,48 @@ class DatabaseQueryBuilderTest extends PHPUnit_Framework_TestCase {
 		$builder->unionAll($this->getBuilder()->select('*')->from('users')->where('id', '=', 3));
 		$this->assertEquals('select * from "users" where "id" = ? union all select * from "users" where "id" = ? union all select * from "users" where "id" = ?', $builder->toSql());
 		$this->assertEquals(array(0 => 1, 1 => 2, 2 => 3), $builder->getBindings());
+	}
+
+
+	public function testUnionOrderBys()
+	{
+		$builder = $this->getBuilder();
+		$builder->select('*')->from('users')->where('id', '=', 1);
+		$builder->union($this->getBuilder()->select('*')->from('users')->where('id', '=', 2));
+		$builder->orderBy('id', 'desc');
+		$this->assertEquals('select * from "users" where "id" = ? union select * from "users" where "id" = ? order by "id" desc', $builder->toSql());
+		$this->assertEquals(array(0 => 1, 1 => 2), $builder->getBindings());
+	}
+
+
+	public function testUnionLimitsAndOffsets()
+	{
+		$builder = $this->getBuilder();
+		$builder->select('*')->from('users');
+		$builder->union($this->getBuilder()->select('*')->from('dogs'));
+		$builder->skip(5)->take(10);
+		$this->assertEquals('select * from "users" union select * from "dogs" limit 10 offset 5', $builder->toSql());
+	}
+
+
+	public function testMySqlUnionOrderBys()
+	{
+		$builder = $this->getMySqlBuilder();
+		$builder->select('*')->from('users')->where('id', '=', 1);
+		$builder->union($this->getMySqlBuilder()->select('*')->from('users')->where('id', '=', 2));
+		$builder->orderBy('id', 'desc');
+		$this->assertEquals('(select * from `users` where `id` = ?) union (select * from `users` where `id` = ?) order by `id` desc', $builder->toSql());
+		$this->assertEquals(array(0 => 1, 1 => 2), $builder->getBindings());
+	}
+
+
+	public function testMySqlUnionLimitsAndOffsets()
+	{
+		$builder = $this->getMySqlBuilder();
+		$builder->select('*')->from('users');
+		$builder->union($this->getMySqlBuilder()->select('*')->from('dogs'));
+		$builder->skip(5)->take(10);
+		$this->assertEquals('(select * from `users`) union (select * from `dogs`) limit 10 offset 5', $builder->toSql());
 	}
 
 
@@ -396,6 +498,12 @@ class DatabaseQueryBuilderTest extends PHPUnit_Framework_TestCase {
 		$builder = $this->getBuilder();
 		$builder->select('*')->from('users')->having('email', '>', 1);
 		$this->assertEquals('select * from "users" having "email" > ?', $builder->toSql());
+
+		$builder = $this->getBuilder();
+		$builder->select('*')->from('users')
+			->orHaving('email', '=', 'test@example.com')
+			->orHaving('email', '=', 'test2@example.com');
+		$this->assertEquals('select * from "users" having "email" = ? or "email" = ?', $builder->toSql());
 
 		$builder = $this->getBuilder();
 		$builder->select('*')->from('users')->groupBy('email')->having('email', '>', 1);
@@ -538,6 +646,10 @@ class DatabaseQueryBuilderTest extends PHPUnit_Framework_TestCase {
 		});
 		$this->assertEquals('select * from "users" inner join "contacts" on "users"."id" = ? or "users"."name" = ?', $builder->toSql());
 		$this->assertEquals(array('foo', 'bar'), $builder->getBindings());
+
+		// Run the assertions again
+		$this->assertEquals('select * from "users" inner join "contacts" on "users"."id" = ? or "users"."name" = ?', $builder->toSql());
+		$this->assertEquals(array('foo', 'bar'), $builder->getBindings());
 	}
 
 	public function testJoinWhereNull()
@@ -643,7 +755,7 @@ class DatabaseQueryBuilderTest extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(1, $results);
 
 		$builder = $this->getBuilder();
-		$builder->getConnection()->shouldReceive('select')->once()->with('select count(*) as aggregate from "users"', array())->andReturn(array(array('aggregate' => 1)));
+		$builder->getConnection()->shouldReceive('select')->once()->with('select count(*) as aggregate from "users" limit 1', array())->andReturn(array(array('aggregate' => 1)));
 		$builder->getProcessor()->shouldReceive('processSelect')->once()->andReturnUsing(function($builder, $results) { return $results; });
 		$results = $builder->from('users')->exists();
 		$this->assertTrue($results);
@@ -1136,6 +1248,14 @@ class DatabaseQueryBuilderTest extends PHPUnit_Framework_TestCase {
 	{
 		$grammar = new Illuminate\Database\Query\Grammars\SqlServerGrammar;
 		$processor = m::mock('Illuminate\Database\Query\Processors\Processor');
+		return new Builder(m::mock('Illuminate\Database\ConnectionInterface'), $grammar, $processor);
+	}
+
+
+	protected function getMySqlBuilderWithProcessor()
+	{
+		$grammar = new Illuminate\Database\Query\Grammars\MySqlGrammar;
+		$processor = new Illuminate\Database\Query\Processors\MySqlProcessor;
 		return new Builder(m::mock('Illuminate\Database\ConnectionInterface'), $grammar, $processor);
 	}
 

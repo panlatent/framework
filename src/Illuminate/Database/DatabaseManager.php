@@ -1,6 +1,7 @@
 <?php namespace Illuminate\Database;
 
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Illuminate\Database\Connectors\ConnectionFactory;
 
 class DatabaseManager implements ConnectionResolverInterface {
@@ -191,9 +192,6 @@ class DatabaseManager implements ConnectionResolverInterface {
 			$connection->setEventDispatcher($this->app['events']);
 		}
 
-		$app = $this->app;
-
-
 		// Here we'll set a reconnector callback. This reconnector can be any callable
 		// so we will set a Closure to reconnect from this manager with the name of
 		// the connection, which will allow us to reconnect from the connections.
@@ -245,7 +243,7 @@ class DatabaseManager implements ConnectionResolverInterface {
 
 		if (is_null($config = array_get($connections, $name)))
 		{
-			throw new \InvalidArgumentException("Database [$name] not configured.");
+			throw new InvalidArgumentException("Database [$name] not configured.");
 		}
 
 		return $config;

@@ -1,10 +1,11 @@
 <?php namespace Illuminate\Auth\Passwords;
 
 use Closure;
+use UnexpectedValueException;
 use Illuminate\Auth\UserProviderInterface;
-use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Mail\Mailer as MailerContract;
 use Illuminate\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
+use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 
 class PasswordBroker implements PasswordBrokerContract {
 
@@ -66,8 +67,8 @@ class PasswordBroker implements PasswordBrokerContract {
 	/**
 	 * Send a password reset link to a user.
 	 *
-	 * @param  array     $credentials
-	 * @param  \Closure  $callback
+	 * @param  array  $credentials
+	 * @param  \Closure|null  $callback
 	 * @return string
 	 */
 	public function sendResetLink(array $credentials, Closure $callback = null)
@@ -96,11 +97,11 @@ class PasswordBroker implements PasswordBrokerContract {
 	 * Send the password reset link via e-mail.
 	 *
 	 * @param  \Illuminate\Contracts\Auth\CanResetPassword  $user
-	 * @param  string    $token
-	 * @param  \Closure  $callback
+	 * @param  string  $token
+	 * @param  \Closure|null  $callback
 	 * @return int
 	 */
-	public function emailResetLink(CanResetPassword $user, $token, Closure $callback = null)
+	public function emailResetLink(CanResetPasswordContract $user, $token, Closure $callback = null)
 	{
 		// We will use the reminder view that was given to the broker to display the
 		// password reminder e-mail. We'll pass a "token" variable into the views
@@ -129,7 +130,7 @@ class PasswordBroker implements PasswordBrokerContract {
 		// the user is properly redirected having an error message on the post.
 		$user = $this->validateReset($credentials);
 
-		if ( ! $user instanceof CanResetPassword)
+		if ( ! $user instanceof CanResetPasswordContract)
 		{
 			return $user;
 		}
@@ -230,13 +231,13 @@ class PasswordBroker implements PasswordBrokerContract {
 	 */
 	public function getUser(array $credentials)
 	{
-		$credentials = array_except($credentials, array('token'));
+		$credentials = array_except($credentials, ['token']);
 
 		$user = $this->users->retrieveByCredentials($credentials);
 
-		if ($user && ! $user instanceof CanResetPassword)
+		if ($user && ! $user instanceof CanResetPasswordContract)
 		{
-			throw new \UnexpectedValueException("User must implement CanResetPassword interface.");
+			throw new UnexpectedValueException("User must implement CanResetPassword interface.");
 		}
 
 		return $user;

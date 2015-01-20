@@ -37,7 +37,7 @@ if ( ! function_exists('action'))
 if ( ! function_exists('app'))
 {
 	/**
-	 * Get the root Facade application instance.
+	 * Get the available container instance.
 	 *
 	 * @param  string  $make
 	 * @return mixed
@@ -49,7 +49,7 @@ if ( ! function_exists('app'))
 			return app()->make($make);
 		}
 
-		return Illuminate\Support\Facades\Facade::getFacadeApplication();
+		return Illuminate\Container\Container::getInstance();
 	}
 }
 
@@ -96,6 +96,21 @@ if ( ! function_exists('base_path'))
 	}
 }
 
+if ( ! function_exists('back'))
+{
+	/**
+	 * Create a new redirect response to the previous location.
+	 *
+	 * @param  int    $status
+	 * @param  array  $headers
+	 * @return \Illuminate\Http\RedirectResponse
+	 */
+	function back($status = 302, $headers = array())
+	{
+		return app('redirect')->back($status, $headers);
+	}
+}
+
 if ( ! function_exists('bcrypt'))
 {
 	/**
@@ -114,14 +129,23 @@ if ( ! function_exists('bcrypt'))
 if ( ! function_exists('config'))
 {
 	/**
-	 * Get the specified configuration value.
+	 * Get / set the specified configuration value.
 	 *
-	 * @param  string  $key
-	 * @param  mixed   $default
+	 * If an array is passed as the key, we will assume you want to set an array of values.
+	 *
+	 * @param  array|string  $key
+	 * @param  mixed  $default
 	 * @return mixed
 	 */
-	function config($key, $default = null)
+	function config($key = null, $default = null)
 	{
+		if (is_null($key)) return app('config');
+
+		if (is_array($key))
+		{
+			return app('config')->set($key);
+		}
+
 		return app('config')->get($key, $default);
 	}
 }
@@ -148,10 +172,8 @@ if ( ! function_exists('cookie'))
 		{
 			return $cookie;
 		}
-		else
-		{
-			return $cookie->make($name, $value, $minutes, $path, $domain, $secure, $httpOnly);
-		}
+
+		return $cookie->make($name, $value, $minutes, $path, $domain, $secure, $httpOnly);
 	}
 }
 
@@ -172,10 +194,8 @@ if ( ! function_exists('csrf_token'))
 		{
 			return $session->getToken();
 		}
-		else
-		{
-			throw new RuntimeException("Application session store not set.");
-		}
+
+		throw new RuntimeException("Application session store not set.");
 	}
 }
 
@@ -221,6 +241,23 @@ if ( ! function_exists('info'))
 	function info($message, $context = array())
 	{
 		return app('log')->info($message, $context);
+	}
+}
+
+if ( ! function_exists('logger'))
+{
+	/**
+	 * Log a debug message to the logs.
+	 *
+	 * @param  string  $message
+	 * @param  array  $context
+	 * @return void
+	 */
+	function logger($message = null, array $context = array())
+	{
+		if (is_null($message)) return app('log');
+
+		return app('log')->debug($message, $context);
 	}
 }
 
@@ -311,14 +348,9 @@ if ( ! function_exists('redirect'))
 	 */
 	function redirect($to = null, $status = 302, $headers = array(), $secure = null)
 	{
-		if ( ! is_null($to))
-		{
-			return app('redirect')->to($to, $status, $headers, $secure);
-		}
-		else
-		{
-			return app('redirect');
-		}
+		if (is_null($to)) return app('redirect');
+
+		return app('redirect')->to($to, $status, $headers, $secure);
 	}
 }
 
@@ -330,7 +362,7 @@ if ( ! function_exists('response'))
 	 * @param  string  $content
 	 * @param  int     $status
 	 * @param  array   $headers
-	 * @return \Symfony\Component\HttpFoundation\Response
+	 * @return \Symfony\Component\HttpFoundation\Response|\Illuminate\Contracts\Routing\ResponseFactory
 	 */
 	function response($content = '', $status = 200, array $headers = array())
 	{
@@ -391,6 +423,27 @@ if ( ! function_exists('secure_url'))
 	}
 }
 
+if ( ! function_exists('session'))
+{
+	/**
+	 * Get / set the specified session value.
+	 *
+	 * If an array is passed as the key, we will assume you want to set an array of values.
+	 *
+	 * @param  array|string  $key
+	 * @param  mixed  $default
+	 * @return mixed
+	 */
+	function session($key = null, $default = null)
+	{
+		if (is_null($key)) return app('session');
+
+		if (is_array($key)) return app('session')->put($key);
+
+		return app('session')->get($key, $default);
+	}
+}
+
 if ( ! function_exists('storage_path'))
 {
 	/**
@@ -416,8 +469,10 @@ if ( ! function_exists('trans'))
 	 * @param  string  $locale
 	 * @return string
 	 */
-	function trans($id, $parameters = array(), $domain = 'messages', $locale = null)
+	function trans($id = null, $parameters = array(), $domain = 'messages', $locale = null)
 	{
+		if (is_null($id)) return app('translator');
+
 		return app('translator')->trans($id, $parameters, $domain, $locale);
 	}
 }
@@ -479,9 +534,63 @@ if ( ! function_exists('view'))
 	}
 }
 
+if ( ! function_exists('env'))
+{
+	/**
+	 * Gets the value of an environment variable. Supports boolean, empty and null.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return mixed
+	 */
+	function env($key, $default = null)
+	{
+		$value = getenv($key);
+
+		if ($value === false) return value($default);
+
+		switch (strtolower($value))
+		{
+			case 'true':
+			case '(true)':
+				return true;
+
+			case 'false':
+			case '(false)':
+				return false;
+
+			case 'null':
+			case '(null)':
+				return null;
+
+			case 'empty':
+			case '(empty)':
+				return '';
+		}
+
+		return $value;
+	}
+}
+
+if ( ! function_exists('event'))
+{
+	/**
+	 * Fire an event and call the listeners.
+	 *
+	 * @param  string  $event
+	 * @param  mixed   $payload
+	 * @param  bool    $halt
+	 * @return array|null
+	 */
+	function event($event, $payload = array(), $halt = false)
+	{
+		return app('events')->fire($event, $payload, $halt);
+	}
+}
+
 if ( ! function_exists('elixir'))
 {
-       /**
+	/**
 	* Get the path to a versioned Elixir file.
 	*
 	* @param  string  $file
@@ -490,18 +599,17 @@ if ( ! function_exists('elixir'))
 	function elixir($file)
 	{
 		static $manifest = null;
-	
+
 		if (is_null($manifest))
 		{
-		    $manifest = json_decode(file_get_contents(public_path().'/build/rev-manifest.json'), true);
+			$manifest = json_decode(file_get_contents(public_path().'/build/rev-manifest.json'), true);
 		}
-	
+
 		if (isset($manifest[$file]))
 		{
-		    return '/build/'.$manifest[$file];
+			return '/build/'.$manifest[$file];
 		}
-		
+
 		throw new InvalidArgumentException("File {$file} not defined in asset manifest.");
 	}
-
 }

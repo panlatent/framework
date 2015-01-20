@@ -1,8 +1,8 @@
 <?php namespace Illuminate\Routing;
 
 use Closure;
-use Illuminate\Container\Container;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use BadMethodCallException;
+use InvalidArgumentException;
 
 abstract class Controller {
 
@@ -37,7 +37,8 @@ abstract class Controller {
 	/**
 	 * Register middleware on the controller.
 	 *
-	 * @param  dynamic  $middleware
+	 * @param  string  $middleware
+	 * @param  array   $options
 	 * @return void
 	 */
 	public function middleware($middleware, array $options = array())
@@ -128,7 +129,7 @@ abstract class Controller {
 	 * Determine if a filter is a local method on the controller.
 	 *
 	 * @param  mixed  $filter
-	 * @return boolean
+	 * @return bool
 	 *
 	 * @throws \InvalidArgumentException
 	 */
@@ -138,7 +139,7 @@ abstract class Controller {
 		{
 			if (method_exists($this, substr($filter, 1))) return true;
 
-			throw new \InvalidArgumentException("Filter method [$filter] does not exist.");
+			throw new InvalidArgumentException("Filter method [$filter] does not exist.");
 		}
 
 		return false;
@@ -170,7 +171,7 @@ abstract class Controller {
 	 * Remove the given controller filter from the provided filter array.
 	 *
 	 * @param  string  $removing
-	 * @param  array  $current
+	 * @param  array   $current
 	 * @return array
 	 */
 	protected function removeFilter($removing, $current)
@@ -255,7 +256,7 @@ abstract class Controller {
 	 */
 	public function __call($method, $parameters)
 	{
-		throw new \BadMethodCallException("Method [$method] does not exist.");
+		throw new BadMethodCallException("Method [$method] does not exist.");
 	}
 
 }

@@ -2,8 +2,6 @@
 
 use Countable;
 use ArrayAccess;
-use ArrayIterator;
-use JsonSerializable;
 use IteratorAggregate;
 use Illuminate\Support\Collection;
 use Illuminate\Contracts\Support\Jsonable;
@@ -47,7 +45,7 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
 	/**
 	 * Get the current page for the request.
 	 *
-	 * @param  int  $lastPage
+	 * @param  int  $currentPage
 	 * @return int
 	 */
 	protected function setCurrentPage($currentPage)
@@ -113,13 +111,10 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
 	public function toArray()
 	{
 		return [
-			'per_page'      => $this->perPage(),
-			'current_page'  => $this->currentPage(),
-			'next_page_url' => $this->nextPageUrl(),
-			'prev_page_url' => $this->previousPageUrl(),
-			'from'          => $this->firstItem(),
-			'to'            => $this->lastItem(),
-			'data'          => $this->items->toArray()
+			'per_page' => $this->perPage(), 'current_page' => $this->currentPage(),
+			'next_page_url' => $this->nextPageUrl(), 'prev_page_url' => $this->previousPageUrl(),
+			'from' => $this->firstItem(), 'to' => $this->lastItem(),
+			'data' => $this->items->toArray()
 		];
 	}
 

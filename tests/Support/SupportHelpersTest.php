@@ -27,6 +27,16 @@ class SupportHelpersTest extends PHPUnit_Framework_TestCase {
 	}
 
 
+	public function testArrayHas()
+	{
+		$array = array('names' => array('developer' => 'taylor'));
+		$this->assertTrue(array_has($array, 'names'));
+		$this->assertTrue(array_has($array, 'names.developer'));
+		$this->assertFalse(array_has($array, 'foo'));
+		$this->assertFalse(array_has($array, 'foo.bar'));
+	}
+
+
 	public function testArraySet()
 	{
 		$array = array();
@@ -133,6 +143,8 @@ class SupportHelpersTest extends PHPUnit_Framework_TestCase {
 		), array_fetch($data, 'comments'));
 
 		$this->assertEquals(array(array('#foo', '#bar'), array('#baz')), array_fetch($data, 'comments.tags'));
+		$this->assertEquals([], array_fetch($data, 'foo'));
+		$this->assertEquals([], array_fetch($data, 'foo.bar'));
 	}
 
 
@@ -188,6 +200,7 @@ class SupportHelpersTest extends PHPUnit_Framework_TestCase {
 	public function testSnakeCase()
 	{
 		$this->assertEquals('foo_bar', snake_case('fooBar'));
+		$this->assertEquals('foo_bar', snake_case('fooBar')); // test cache
 	}
 
 
@@ -195,6 +208,7 @@ class SupportHelpersTest extends PHPUnit_Framework_TestCase {
 	{
 		$this->assertEquals('fooBar', camel_case('FooBar'));
 		$this->assertEquals('fooBar', camel_case('foo_bar'));
+		$this->assertEquals('fooBar', camel_case('foo_bar')); // test cache
 		$this->assertEquals('fooBarBaz', camel_case('Foo-barBaz'));
 		$this->assertEquals('fooBarBaz', camel_case('foo-bar_baz'));
 	}
@@ -204,6 +218,7 @@ class SupportHelpersTest extends PHPUnit_Framework_TestCase {
 	{
 		$this->assertEquals('FooBar', studly_case('fooBar'));
 		$this->assertEquals('FooBar', studly_case('foo_bar'));
+		$this->assertEquals('FooBar', studly_case('foo_bar')); // test cache
 		$this->assertEquals('FooBarBaz', studly_case('foo-barBaz'));
 		$this->assertEquals('FooBarBaz', studly_case('foo-bar_baz'));
 	}
@@ -230,12 +245,19 @@ class SupportHelpersTest extends PHPUnit_Framework_TestCase {
 	{
 		$object = (object) array('users' => array('name' => array('Taylor', 'Otwell')));
 		$array = array((object) array('users' => array((object) array('name' => 'Taylor'))));
+		$arrayAccess = new SupportTestArrayAccess(['price' => 56, 'user' => new SupportTestArrayAccess(['name' => 'John'])]);
 
 		$this->assertEquals('Taylor', data_get($object, 'users.name.0'));
 		$this->assertEquals('Taylor', data_get($array, '0.users.0.name'));
 		$this->assertNull(data_get($array, '0.users.3'));
 		$this->assertEquals('Not found', data_get($array, '0.users.3', 'Not found'));
 		$this->assertEquals('Not found', data_get($array, '0.users.3', function (){ return 'Not found'; }));
+		$this->assertEquals(56, data_get($arrayAccess, 'price'));
+		$this->assertEquals('John', data_get($arrayAccess, 'user.name'));
+		$this->assertEquals('void', data_get($arrayAccess, 'foo', 'void'));
+		$this->assertEquals('void', data_get($arrayAccess, 'user.foo', 'void'));
+		$this->assertNull(data_get($arrayAccess, 'foo'));
+		$this->assertNull(data_get($arrayAccess, 'user.foo'));
 	}
 
 
@@ -292,3 +314,19 @@ class SupportTestClassOne {
 }
 
 class SupportTestClassTwo extends SupportTestClassOne {}
+
+class SupportTestArrayAccess implements ArrayAccess {
+
+	protected $attributes = [];
+
+	public function __construct ($attributes = []){ $this->attributes = $attributes; }
+
+	public function offsetExists ($offset){ return isset($this->attributes[$offset]); }
+
+	public function offsetGet ($offset){ return $this->attributes[$offset]; }
+
+	public function offsetSet ($offset, $value){ $this->attributes[$offset] = $value; }
+
+	public function offsetUnset ($offset){ unset($this->attributes[$offset]); }
+
+}

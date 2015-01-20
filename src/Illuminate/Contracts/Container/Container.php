@@ -24,11 +24,11 @@ interface Container {
 	/**
 	 * Assign a set of tags to a given binding.
 	 *
-	 * @param  string  $abstract
-	 * @param  array|dynamic  $tags
+	 * @param  array|string  $abstracts
+	 * @param  array|mixed   ...$tags
 	 * @return void
 	 */
-	public function tag($abstract, $tags);
+	public function tag($abstracts, $tags);
 
 	/**
 	 * Resolve all of the bindings for a given tag.
@@ -79,6 +79,15 @@ interface Container {
 	public function extend($abstract, Closure $closure);
 
 	/**
+	 * Register an existing instance as shared in the container.
+	 *
+	 * @param  string  $abstract
+	 * @param  mixed   $instance
+	 * @return void
+	 */
+	public function instance($abstract, $instance);
+
+	/**
 	 * Define a contextual binding.
 	 *
 	 * @param  string  $concrete
@@ -120,14 +129,15 @@ interface Container {
 	 * @param  \Closure  $callback
 	 * @return void
 	 */
-	public function resolving($abstract, Closure $callback);
+	public function resolving($abstract, Closure $callback = null);
 
 	/**
-	 * Register a new resolving callback for all types.
+	 * Register a new after resolving callback.
 	 *
+	 * @param  string    $abstract
 	 * @param  \Closure  $callback
 	 * @return void
 	 */
-	public function resolvingAny(Closure $callback);
+	public function afterResolving($abstract, Closure $callback = null);
 
 }

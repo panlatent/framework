@@ -1,15 +1,15 @@
 <?php namespace Illuminate\Auth\Passwords;
 
 use Carbon\Carbon;
-use Illuminate\Database\Connection;
-use Illuminate\Contracts\Auth\CanResetPassword;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 
 class DatabaseTokenRepository implements TokenRepositoryInterface {
 
 	/**
 	 * The database connection instance.
 	 *
-	 * @var \Illuminate\Database\Connection
+	 * @var \Illuminate\Database\ConnectionInterface
 	 */
 	protected $connection;
 
@@ -37,13 +37,13 @@ class DatabaseTokenRepository implements TokenRepositoryInterface {
 	/**
 	 * Create a new token repository instance.
 	 *
-	 * @param  \Illuminate\Database\Connection  $connection
+	 * @param  \Illuminate\Database\ConnectionInterface  $connection
 	 * @param  string  $table
 	 * @param  string  $hashKey
 	 * @param  int  $expires
 	 * @return void
 	 */
-	public function __construct(Connection $connection, $table, $hashKey, $expires = 60)
+	public function __construct(ConnectionInterface $connection, $table, $hashKey, $expires = 60)
 	{
 		$this->table = $table;
 		$this->hashKey = $hashKey;
@@ -57,7 +57,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface {
 	 * @param  \Illuminate\Contracts\Auth\CanResetPassword  $user
 	 * @return string
 	 */
-	public function create(CanResetPassword $user)
+	public function create(CanResetPasswordContract $user)
 	{
 		$email = $user->getEmailForPasswordReset();
 
@@ -79,7 +79,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface {
 	 * @param  \Illuminate\Contracts\Auth\CanResetPassword  $user
 	 * @return int
 	 */
-	protected function deleteExisting(CanResetPassword $user)
+	protected function deleteExisting(CanResetPasswordContract $user)
 	{
 		return $this->getTable()->where('email', $user->getEmailForPasswordReset())->delete();
 	}
@@ -93,7 +93,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface {
 	 */
 	protected function getPayload($email, $token)
 	{
-		return array('email' => $email, 'token' => $token, 'created_at' => new Carbon);
+		return ['email' => $email, 'token' => $token, 'created_at' => new Carbon];
 	}
 
 	/**
@@ -103,7 +103,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface {
 	 * @param  string  $token
 	 * @return bool
 	 */
-	public function exists(CanResetPassword $user, $token)
+	public function exists(CanResetPasswordContract $user, $token)
 	{
 		$email = $user->getEmailForPasswordReset();
 
@@ -164,7 +164,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface {
 	 * @param  \Illuminate\Contracts\Auth\CanResetPassword  $user
 	 * @return string
 	 */
-	public function createNewToken(CanResetPassword $user)
+	public function createNewToken(CanResetPasswordContract $user)
 	{
 		$email = $user->getEmailForPasswordReset();
 
@@ -186,7 +186,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface {
 	/**
 	 * Get the database connection instance.
 	 *
-	 * @return \Illuminate\Database\Connection
+	 * @return \Illuminate\Database\ConnectionInterface
 	 */
 	public function getConnection()
 	{

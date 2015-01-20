@@ -1,8 +1,10 @@
 <?php namespace Illuminate\Filesystem;
 
+use InvalidArgumentException;
 use Illuminate\Support\Collection;
 use League\Flysystem\AdapterInterface;
 use League\Flysystem\FilesystemInterface;
+use League\Flysystem\FileNotFoundException;
 use Illuminate\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Illuminate\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Illuminate\Contracts\Filesystem\FileNotFoundException as ContractFileNotFoundException;
@@ -52,7 +54,7 @@ class FilesystemAdapter implements FilesystemContract, CloudFilesystemContract {
 		{
 			return $this->driver->read($path);
 		}
-		catch (\League\Flysystem\FileNotFoundException $e)
+		catch (FileNotFoundException $e)
 		{
 			throw new ContractFileNotFoundException($path, $e->getCode(), $e);
 		}
@@ -68,7 +70,7 @@ class FilesystemAdapter implements FilesystemContract, CloudFilesystemContract {
 	 */
 	public function put($path, $contents, $visibility = null)
 	{
-		return $this->driver->put($path, $contents, $this->parseVisibility($visibility));
+		return $this->driver->put($path, $contents, ['visibility' => $this->parseVisibility($visibility)]);
 	}
 
 	/**
@@ -263,6 +265,16 @@ class FilesystemAdapter implements FilesystemContract, CloudFilesystemContract {
 	}
 
 	/**
+	 * Get the Flysystem driver.
+	 *
+	 * @return \League\Flysystem\FilesystemInterface
+	 */
+	public function getDriver()
+	{
+		return $this->driver;
+	}
+
+	/**
 	 * Filter directory contents by type.
 	 *
 	 * @param  array  $contents
@@ -271,18 +283,10 @@ class FilesystemAdapter implements FilesystemContract, CloudFilesystemContract {
 	 */
 	protected function filterContentsByType($contents, $type)
 	{
-		$contents = Collection::make($contents);
-
-		$contents = $contents->filter(function($value) use ($type)
-		{
-			return $value['type'] == $type;
-		})
-		->map(function($value)
-		{
-			return $value['path'];
-		});
-
-        return $contents->values()->all();
+		return Collection::make($contents)
+			->where('type', $type)
+			->fetch('path')
+			->values()->all();
 	}
 
 	/**
@@ -294,7 +298,7 @@ class FilesystemAdapter implements FilesystemContract, CloudFilesystemContract {
 	 */
 	protected function parseVisibility($visibility)
 	{
-		if (is_null($visibility)) return null;
+		if (is_null($visibility)) return;
 
 		switch ($visibility)
 		{
@@ -305,7 +309,7 @@ class FilesystemAdapter implements FilesystemContract, CloudFilesystemContract {
 				return AdapterInterface::VISIBILITY_PRIVATE;
 		}
 
-		throw new \InvalidArgumentException('Unknown visibility: '.$visibility);
+		throw new InvalidArgumentException('Unknown visibility: '.$visibility);
 	}
 
 }

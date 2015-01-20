@@ -1,28 +1,26 @@
 <?php namespace Illuminate\Foundation\Support\Providers;
 
-use Closure;
+use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Routing\Annotations\Scanner;
 
 class RouteServiceProvider extends ServiceProvider {
 
 	/**
-	 * Determines if we will auto-scan in the local environment.
+	 * The controller namespace for the application.
 	 *
-	 * @var bool
+	 * @var string
 	 */
-	protected $scanWhenLocal = true;
+	protected $namespace = '';
 
 	/**
-	 * Register the service provider.
+	 * Bootstrap any application services.
 	 *
+	 * @param  \Illuminate\Routing\Router  $router
 	 * @return void
 	 */
-	public function boot()
+	public function boot(Router $router)
 	{
-		$this->setRoutingMetaInformation();
-
-		$this->app->call([$this, 'before']);
+		$this->setRootControllerNamespace();
 
 		if ($this->app->routesAreCached())
 		{
@@ -35,15 +33,16 @@ class RouteServiceProvider extends ServiceProvider {
 	}
 
 	/**
-	 * Set some meta information regarding routing.
+	 * Set the root controller namespace for the application.
 	 *
 	 * @return void
 	 */
-	protected function setRoutingMetaInformation()
+	protected function setRootControllerNamespace()
 	{
-		$this->app['url']->setRootControllerNamespace($this->rootUrlNamespace);
+		if (is_null($this->namespace)) return;
 
-		$this->app['router']->setControllersToScan($this->scan ?: []);
+		$this->app['Illuminate\Contracts\Routing\UrlGenerator']
+						->setRootControllerNamespace($this->namespace);
 	}
 
 	/**
@@ -66,45 +65,22 @@ class RouteServiceProvider extends ServiceProvider {
 	 */
 	protected function loadRoutes()
 	{
-		if ($this->app->environment('local') && $this->scanWhenLocal)
-		{
-			$this->scanRoutes();
-		}
-
-		if ($this->app->routesAreScanned())
-		{
-			$this->loadScannedRoutes();
-		}
-
 		$this->app->call([$this, 'map']);
 	}
 
 	/**
-	 * Scan the routes and write the scanned routes file.
+	 * Load the standard routes file for the application.
 	 *
+	 * @param  string  $path
 	 * @return void
 	 */
-	protected function scanRoutes()
+	protected function loadRoutesFrom($path)
 	{
-		if (empty($this->scan)) return;
+		$router = $this->app['Illuminate\Routing\Router'];
 
-		$scanner = new Scanner($this->scan);
-
-		file_put_contents($this->app->getScannedRoutesPath(), '<?php '.$scanner->getRouteDefinitions());
-	}
-
-	/**
-	 * Load the scanned application routes.
-	 *
-	 * @return void
-	 */
-	protected function loadScannedRoutes()
-	{
-		$this->app->booted(function()
+		$router->group(['namespace' => $this->namespace], function($router) use ($path)
 		{
-			$router = app('Illuminate\Contracts\Routing\Registrar');
-
-			require $this->app->getScannedRoutesPath();
+			require $path;
 		});
 	}
 
@@ -114,25 +90,6 @@ class RouteServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	public function register() {}
-
-	/**
-	 * Register the given Closure with the "group" function namespace set.
-	 *
-	 * @param  string  $namespace
-	 * @param  \Closure  $callback
-	 * @return void
-	 */
-	protected function namespaced($namespace, Closure $callback)
-	{
-		if (empty($namespace))
-		{
-			$callback($this->app['router']);
-		}
-		else
-		{
-			$this->app['router']->group(compact('namespace'), $callback);
-		}
-	}
 
 	/**
 	 * Pass dynamic methods onto the router instance.

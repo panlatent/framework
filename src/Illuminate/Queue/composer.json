@@ -1,5 +1,6 @@
 {
     "name": "illuminate/queue",
+    "description": "The Illuminate Queue package.",
     "license": "MIT",
     "authors": [
         {
@@ -24,7 +25,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Illuminate\\Queuing\\": ""
+            "Illuminate\\Queue\\": ""
         },
         "classmap": [
             "IlluminateQueueClosure.php"

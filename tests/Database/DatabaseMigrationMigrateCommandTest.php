@@ -41,32 +41,6 @@ class DatabaseMigrationMigrateCommandTest extends PHPUnit_Framework_TestCase {
 	}
 
 
-	public function testPackageIsRespectedWhenMigrating()
-	{
-		$command = new MigrateCommand($migrator = m::mock('Illuminate\Database\Migrations\Migrator'), __DIR__.'/vendor');
-		$command->setLaravel(new ApplicationDatabaseMigrationStub());
-		$migrator->shouldReceive('setConnection')->once()->with(null);
-		$migrator->shouldReceive('run')->once()->with(__DIR__.'/vendor/bar/src/migrations', false);
-		$migrator->shouldReceive('getNotes')->andReturn(array());
-		$migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
-
-		$this->runCommand($command, array('--package' => 'bar'));
-	}
-
-
-	public function testVendorPackageIsRespectedWhenMigrating()
-	{
-		$command = new MigrateCommand($migrator = m::mock('Illuminate\Database\Migrations\Migrator'), __DIR__.'/vendor');
-		$command->setLaravel(new ApplicationDatabaseMigrationStub());
-		$migrator->shouldReceive('setConnection')->once()->with(null);
-		$migrator->shouldReceive('run')->once()->with(__DIR__.'/vendor/foo/bar/src/migrations', false);
-		$migrator->shouldReceive('getNotes')->andReturn(array());
-		$migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
-
-		$this->runCommand($command, array('--package' => 'foo/bar'));
-	}
-
-
 	public function testTheCommandMayBePretended()
 	{
 		$command = new MigrateCommand($migrator = m::mock('Illuminate\Database\Migrations\Migrator'), __DIR__.'/vendor');
@@ -111,4 +85,5 @@ class ApplicationDatabaseMigrationStub implements ArrayAccess {
 	public function offsetSet($offset, $value) { $this->content[$offset] = $value; }
 	public function offsetUnset($offset) { unset($this->content[$offset]); }
 	public function environment() { return $this->env; }
+	public function call($method) { return call_user_func($method); }
 }

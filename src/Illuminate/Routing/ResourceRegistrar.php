@@ -30,7 +30,6 @@ class ResourceRegistrar {
 	/**
 	 * Route a resource to a controller.
 	 *
-	 * @param  Router  $router
 	 * @param  string  $name
 	 * @param  string  $controller
 	 * @param  array   $options
@@ -212,7 +211,7 @@ class ResourceRegistrar {
 	 */
 	protected function getGroupResourceName($prefix, $resource, $method)
 	{
-		$group = str_replace('/', '.', $this->router->getLastGroupPrefix());
+		$group = trim(str_replace('/', '.', $this->router->getLastGroupPrefix()), '.');
 
 		return trim("{$prefix}{$group}.{$resource}.{$method}", '.');
 	}

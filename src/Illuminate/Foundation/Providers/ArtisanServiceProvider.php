@@ -1,25 +1,28 @@
 <?php namespace Illuminate\Foundation\Providers;
 
-use Illuminate\Foundation\Artisan;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Foundation\Console\UpCommand;
 use Illuminate\Foundation\Console\DownCommand;
 use Illuminate\Foundation\Console\ServeCommand;
 use Illuminate\Foundation\Console\TinkerCommand;
 use Illuminate\Foundation\Console\AppNameCommand;
-use Illuminate\Foundation\Console\ChangesCommand;
 use Illuminate\Foundation\Console\OptimizeCommand;
 use Illuminate\Foundation\Console\RouteListCommand;
-use Illuminate\Foundation\Console\RouteScanCommand;
-use Illuminate\Foundation\Console\EventScanCommand;
+use Illuminate\Foundation\Console\EventMakeCommand;
+use Illuminate\Foundation\Console\ModelMakeCommand;
 use Illuminate\Foundation\Console\RouteCacheCommand;
 use Illuminate\Foundation\Console\RouteClearCommand;
+use Illuminate\Foundation\Console\CommandMakeCommand;
+use Illuminate\Foundation\Console\ConfigCacheCommand;
+use Illuminate\Foundation\Console\ConfigClearCommand;
 use Illuminate\Foundation\Console\ConsoleMakeCommand;
 use Illuminate\Foundation\Console\EnvironmentCommand;
 use Illuminate\Foundation\Console\KeyGenerateCommand;
 use Illuminate\Foundation\Console\RequestMakeCommand;
 use Illuminate\Foundation\Console\ProviderMakeCommand;
+use Illuminate\Foundation\Console\HandlerEventCommand;
 use Illuminate\Foundation\Console\ClearCompiledCommand;
+use Illuminate\Foundation\Console\HandlerCommandCommand;
 
 class ArtisanServiceProvider extends ServiceProvider {
 
@@ -37,20 +40,24 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected $commands = [
 		'AppName' => 'command.app.name',
-		'Changes' => 'command.changes',
 		'ClearCompiled' => 'command.clear-compiled',
+		'CommandMake' => 'command.command.make',
+		'ConfigCache' => 'command.config.cache',
+		'ConfigClear' => 'command.config.clear',
 		'ConsoleMake' => 'command.console.make',
+		'EventMake' => 'command.event.make',
 		'Down' => 'command.down',
 		'Environment' => 'command.environment',
-		'EventScan' => 'command.event.scan',
+		'HandlerCommand' => 'command.handler.command',
+		'HandlerEvent' => 'command.handler.event',
 		'KeyGenerate' => 'command.key.generate',
+		'ModelMake' => 'command.model.make',
 		'Optimize' => 'command.optimize',
 		'ProviderMake' => 'command.provider.make',
 		'RequestMake' => 'command.request.make',
 		'RouteCache' => 'command.route.cache',
 		'RouteClear' => 'command.route.clear',
 		'RouteList' => 'command.route.list',
-		'RouteScan' => 'command.route.scan',
 		'Serve' => 'command.serve',
 		'Tinker' => 'command.tinker',
 		'Up' => 'command.up',
@@ -63,14 +70,6 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	public function register()
 	{
-		// This Artisan class is a lightweight wrapper for calling into the Artisan
-		// command line. If a call to this class is executed we will boot up the
-		// entire Artisan command line then pass the method into the main app.
-		$this->app->bindShared('artisan', function($app)
-		{
-			return new Artisan($app);
-		});
-
 		foreach (array_keys($this->commands) as $command)
 		{
 			$method = "register{$command}Command";
@@ -88,7 +87,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerAppNameCommand()
 	{
-		$this->app->bindShared('command.app.name', function($app)
+		$this->app->singleton('command.app.name', function($app)
 		{
 			return new AppNameCommand($app['composer'], $app['files']);
 		});
@@ -99,22 +98,9 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 *
 	 * @return void
 	 */
-	protected function registerChangesCommand()
-	{
-		$this->app->bindShared('command.changes', function()
-		{
-			return new ChangesCommand;
-		});
-	}
-
-	/**
-	 * Register the command.
-	 *
-	 * @return void
-	 */
 	protected function registerClearCompiledCommand()
 	{
-		$this->app->bindShared('command.clear-compiled', function()
+		$this->app->singleton('command.clear-compiled', function()
 		{
 			return new ClearCompiledCommand;
 		});
@@ -125,9 +111,48 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 *
 	 * @return void
 	 */
+	protected function registerCommandMakeCommand()
+	{
+		$this->app->singleton('command.command.make', function($app)
+		{
+			return new CommandMakeCommand($app['files']);
+		});
+	}
+
+	/**
+	 * Register the command.
+	 *
+	 * @return void
+	 */
+	protected function registerConfigCacheCommand()
+	{
+		$this->app->singleton('command.config.cache', function($app)
+		{
+			return new ConfigCacheCommand($app['files']);
+		});
+	}
+
+	/**
+	 * Register the command.
+	 *
+	 * @return void
+	 */
+	protected function registerConfigClearCommand()
+	{
+		$this->app->singleton('command.config.clear', function($app)
+		{
+			return new ConfigClearCommand($app['files']);
+		});
+	}
+
+	/**
+	 * Register the command.
+	 *
+	 * @return void
+	 */
 	protected function registerConsoleMakeCommand()
 	{
-		$this->app->bindShared('command.console.make', function($app)
+		$this->app->singleton('command.console.make', function($app)
 		{
 			return new ConsoleMakeCommand($app['files']);
 		});
@@ -138,9 +163,22 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 *
 	 * @return void
 	 */
+	protected function registerEventMakeCommand()
+	{
+		$this->app->singleton('command.event.make', function($app)
+		{
+			return new EventMakeCommand($app['files']);
+		});
+	}
+
+	/**
+	 * Register the command.
+	 *
+	 * @return void
+	 */
 	protected function registerDownCommand()
 	{
-		$this->app->bindShared('command.down', function()
+		$this->app->singleton('command.down', function()
 		{
 			return new DownCommand;
 		});
@@ -153,7 +191,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerEnvironmentCommand()
 	{
-		$this->app->bindShared('command.environment', function()
+		$this->app->singleton('command.environment', function()
 		{
 			return new EnvironmentCommand;
 		});
@@ -164,11 +202,24 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 *
 	 * @return void
 	 */
-	protected function registerEventScanCommand()
+	protected function registerHandlerCommandCommand()
 	{
-		$this->app->bindShared('command.event.scan', function()
+		$this->app->singleton('command.handler.command', function($app)
 		{
-			return new EventScanCommand;
+			return new HandlerCommandCommand($app['files']);
+		});
+	}
+
+	/**
+	 * Register the command.
+	 *
+	 * @return void
+	 */
+	protected function registerHandlerEventCommand()
+	{
+		$this->app->singleton('command.handler.event', function($app)
+		{
+			return new HandlerEventCommand($app['files']);
 		});
 	}
 
@@ -179,9 +230,22 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerKeyGenerateCommand()
 	{
-		$this->app->bindShared('command.key.generate', function($app)
+		$this->app->singleton('command.key.generate', function($app)
 		{
-			return new KeyGenerateCommand($app['files']);
+			return new KeyGenerateCommand;
+		});
+	}
+
+	/**
+	 * Register the command.
+	 *
+	 * @return void
+	 */
+	protected function registerModelMakeCommand()
+	{
+		$this->app->singleton('command.model.make', function($app)
+		{
+			return new ModelMakeCommand($app['files']);
 		});
 	}
 
@@ -192,7 +256,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerOptimizeCommand()
 	{
-		$this->app->bindShared('command.optimize', function($app)
+		$this->app->singleton('command.optimize', function($app)
 		{
 			return new OptimizeCommand($app['composer']);
 		});
@@ -205,7 +269,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerProviderMakeCommand()
 	{
-		$this->app->bindShared('command.provider.make', function($app)
+		$this->app->singleton('command.provider.make', function($app)
 		{
 			return new ProviderMakeCommand($app['files']);
 		});
@@ -218,7 +282,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerRequestMakeCommand()
 	{
-		$this->app->bindShared('command.request.make', function($app)
+		$this->app->singleton('command.request.make', function($app)
 		{
 			return new RequestMakeCommand($app['files']);
 		});
@@ -231,7 +295,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerRouteCacheCommand()
 	{
-		$this->app->bindShared('command.route.cache', function($app)
+		$this->app->singleton('command.route.cache', function($app)
 		{
 			return new RouteCacheCommand($app['files']);
 		});
@@ -244,7 +308,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerRouteClearCommand()
 	{
-		$this->app->bindShared('command.route.clear', function($app)
+		$this->app->singleton('command.route.clear', function($app)
 		{
 			return new RouteClearCommand($app['files']);
 		});
@@ -257,7 +321,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerRouteListCommand()
 	{
-		$this->app->bindShared('command.route.list', function($app)
+		$this->app->singleton('command.route.list', function($app)
 		{
 			return new RouteListCommand($app['router']);
 		});
@@ -268,22 +332,9 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 *
 	 * @return void
 	 */
-	protected function registerRouteScanCommand()
-	{
-		$this->app->bindShared('command.route.scan', function()
-		{
-			return new RouteScanCommand;
-		});
-	}
-
-	/**
-	 * Register the command.
-	 *
-	 * @return void
-	 */
 	protected function registerServeCommand()
 	{
-		$this->app->bindShared('command.serve', function()
+		$this->app->singleton('command.serve', function($app)
 		{
 			return new ServeCommand;
 		});
@@ -296,7 +347,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerTinkerCommand()
 	{
-		$this->app->bindShared('command.tinker', function()
+		$this->app->singleton('command.tinker', function()
 		{
 			return new TinkerCommand;
 		});
@@ -309,7 +360,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	protected function registerUpCommand()
 	{
-		$this->app->bindShared('command.up', function()
+		$this->app->singleton('command.up', function()
 		{
 			return new UpCommand;
 		});
@@ -322,7 +373,7 @@ class ArtisanServiceProvider extends ServiceProvider {
 	 */
 	public function provides()
 	{
-		return array_merge(['artisan'], array_values($this->commands));
+		return array_values($this->commands);
 	}
 
 }
